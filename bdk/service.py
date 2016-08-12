@@ -4,6 +4,7 @@ import simplejson
 import subprocess
 import time
 import argparse
+import platform
 import sys
 
 import requests.packages.urllib3
@@ -13,13 +14,23 @@ log = logging.getLogger(__name__)
 
 
 class TankManager(object):
-    def __init__(self, api):
+    def __init__(self, api, tankname):
         self.api = api
+        if platform.system() == "Darwin":
+            log.info("Darwin detected. Using /tmp as lock dir.")
+            self.darwin = True
+        else:
+            self.darwin = False
+
+        if not tankname:
+            tankname = platform.node()
+        log.info("Tank name: '%s'", tankname)
+        self.tankname = tankname
 
     def claim(self):
         resp = requests.get(
             self.api+"/firestarter/claim_job",
-            params=dict(tank="mytank"), verify=False)
+            params=dict(tank=self.tankname), verify=False)
         if resp.status_code == 200:
             try:
                 data = resp.json()
@@ -51,8 +62,9 @@ class TankManager(object):
             "meta.upload_token": job.get("upload_token"),
             "meta.jobno": job.get("id"),
         }
-        cmd = "yandex-tank --lock-dir . " + " ".join(
-            "-o %s=%s" % (k, v) for k, v in params.items()) + \
+        cmd = "yandex-tank " + \
+            ("--lock-dir /tmp " if self.darwin else "") + \
+            " ".join("-o %s=%s" % (k, v) for k, v in params.items()) + \
             " -c %s/api/job/%s/configinitial.txt" % (self.api, job.get("id"))
 
         log.info("Running Tank: %s", cmd)
@@ -61,18 +73,29 @@ class TankManager(object):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Process jobs from Tank task queue.')
+    parser = argparse.ArgumentParser(
+        description='Process jobs from Tank task queue.')
     parser.add_argument(
         '-e', '--endpoint',
         default='https://lunapark.yandex-team.ru',
         help='job queue server address')
 
+
+    parser.add_argument(
+        '-t', '--tankname',
+        default='',
+        help='tank name')
+
     args = parser.parse_args()
-    tm = TankManager(args.endpoint.strip("/"))
+    tm = TankManager(args.endpoint.strip("/"), args.tankname)
     while True:
         if tm.claim() == 404:
-            time.sleep(3)
+            logging.info("No jobs.")
+            time.sleep(10)
 
 if __name__ == '__main__':
-    logging.basicConfig(level="INFO")
+    logging.basicConfig(
+        level="INFO",
+        format='%(asctime)s [%(levelname)s] [BDK] %(filename)s:%(lineno)d %(message)s')
+    logging.getLogger("requests").setLevel("ERROR")
     main()
