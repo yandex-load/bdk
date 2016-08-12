@@ -86,7 +86,18 @@ def main():
         default='',
         help='tank name')
 
+    parser.add_argument(
+        '-d', '--debug',
+        action='store_true')
+
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level="DEBUG" if args.debug else "INFO",
+        format='%(asctime)s [%(levelname)s] [BDK] %(filename)s:%(lineno)d %(message)s')
+    if not args.debug:
+        logging.getLogger("requests").setLevel("ERROR")
+
     tm = TankManager(args.endpoint.strip("/"), args.tankname)
     while True:
         if tm.claim() == 404:
@@ -94,8 +105,4 @@ def main():
             time.sleep(10)
 
 if __name__ == '__main__':
-    logging.basicConfig(
-        level="INFO",
-        format='%(asctime)s [%(levelname)s] [BDK] %(filename)s:%(lineno)d %(message)s')
-    logging.getLogger("requests").setLevel("ERROR")
     main()

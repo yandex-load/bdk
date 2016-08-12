@@ -12,7 +12,7 @@ setup(
     packages=['bdk'],
     package_data={'bdk': []},
     install_requires=[
-        'requests',
+        'requests', 'simplejson'
     ],
     entry_points={
         'console_scripts': [
