@@ -17,6 +17,7 @@ log = logging.getLogger(__name__)
 class TankManager(object):
     def __init__(self, api, tankname):
         self.api = api
+        log.info("API endpoint: '%s'", api)
         if platform.system() == "Darwin":
             log.info("Darwin detected. Using /tmp as lock dir.")
             self.darwin = True
@@ -69,7 +70,7 @@ class TankManager(object):
             " -c %s/api/job/%s/configinitial.txt" % (self.api, job.get("id"))
 
         log.info("Running Tank: %s", cmd)
-        with open(os.devnull) as devnull:
+        with open(os.devnull, 'w') as devnull:
             subprocess.call(
                 [
                     part.decode(sys.getfilesystemencoding())
