@@ -6,6 +6,7 @@ import time
 import argparse
 import platform
 import sys
+import os
 
 import requests.packages.urllib3
 requests.packages.urllib3.disable_warnings()
@@ -68,8 +69,12 @@ class TankManager(object):
             " -c %s/api/job/%s/configinitial.txt" % (self.api, job.get("id"))
 
         log.info("Running Tank: %s", cmd)
-        subprocess.call([
-            part.decode(sys.getfilesystemencoding()) for part in cmd.split()])
+        with open(os.devnull) as devnull:
+            subprocess.call(
+                [
+                    part.decode(sys.getfilesystemencoding())
+                    for part in cmd.split()],
+                stdout=devnull)
 
 
 def main():
