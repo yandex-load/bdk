@@ -52,6 +52,8 @@ class TankManager(object):
                 log.exception("Error decoding JSON response:\n%s\n", resp.text)
         elif resp.status_code == 404:
             log.debug(resp.text)
+        elif resp.status_code == 400:
+            log.exception("Bad request. Response: %s", resp.text)
         else:
             log.error("Non-200 response code: %s", resp.status_code)
             try:
@@ -97,6 +99,10 @@ def main():
         '-d', '--debug',
         action='store_true')
 
+    parser.add_argument(
+        '-i', '--interval',
+        type=int, default=10)
+
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -105,11 +111,14 @@ def main():
     if not args.debug:
         logging.getLogger("requests").setLevel("ERROR")
 
+
+    log.info("Poll interval: %d", args.interval)
+
     tm = TankManager(args.endpoint.strip("/"), args.tankname)
     while True:
         if tm.claim() == 404:
             logging.info("No jobs.")
-            time.sleep(10)
+        time.sleep(args.interval)
 
 if __name__ == '__main__':
     main()
