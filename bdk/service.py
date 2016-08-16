@@ -122,7 +122,7 @@ def main():
 
     log.info("Poll interval: %d", args.interval)
 
-    tm = TankManager(args.endpoint.strip("/"), args.tankname)
+    tm = TankManager(args.endpoint.strip("/"), args.tankname, args.cmdline)
     while True:
         if tm.claim() == 404:
             logging.info("No jobs.")
