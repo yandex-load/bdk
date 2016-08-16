@@ -4,6 +4,7 @@ import simplejson
 import subprocess
 import time
 import argparse
+import socket
 import platform
 import sys
 import os
@@ -25,7 +26,7 @@ class TankManager(object):
             self.darwin = False
 
         if not tankname:
-            tankname = platform.node()
+            tankname = socket.getfqdn()
         log.info("Tank name: '%s'", tankname)
         self.tankname = tankname
 
