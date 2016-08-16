@@ -16,7 +16,9 @@ log = logging.getLogger(__name__)
 
 
 class TankManager(object):
-    def __init__(self, api, tankname):
+    def __init__(self, api, tankname, cmd):
+        self.cmd = cmd
+        log.info("Cmdline: '%s'", cmd)
         self.api = api
         log.info("API endpoint: '%s'", api)
         if platform.system() == "Darwin":
@@ -67,17 +69,17 @@ class TankManager(object):
             "meta.upload_token": job.get("upload_token"),
             "meta.jobno": job.get("id"),
         }
-        cmd = "yandex-tank " + \
+        cmdline = self.cmd + " " + \
             ("--lock-dir /tmp " if self.darwin else "") + \
             " ".join("-o %s=%s" % (k, v) for k, v in params.items()) + \
             " -c %s/api/job/%s/configinitial.txt" % (self.api, job.get("id"))
 
-        log.info("Running Tank: %s", cmd)
+        log.info("Running Tank: %s", cmdline)
         with open(os.devnull, 'w') as devnull:
             subprocess.call(
                 [
                     part.decode(sys.getfilesystemencoding())
-                    for part in cmd.split()],
+                    for part in cmdline.split()],
                 stdout=devnull)
 
 
@@ -101,7 +103,13 @@ def main():
 
     parser.add_argument(
         '-i', '--interval',
-        type=int, default=10)
+        type=int, default=10,
+        help='poll interval')
+
+    parser.add_argument(
+        '-c', '--cmdline',
+        default='yandex-tank',
+        help='program to execute')
 
     args = parser.parse_args()
 
