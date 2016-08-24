@@ -75,12 +75,9 @@ class TankManager(object):
             " -c %s/api/job/%s/configinitial.txt" % (self.api, job.get("id"))
 
         log.info("Running Tank: %s", cmdline)
-        with open(os.devnull, 'w') as devnull:
-            subprocess.call(
-                [
-                    part.decode(sys.getfilesystemencoding())
-                    for part in cmdline.split()],
-                stdout=devnull)
+        subprocess.call([
+            part.decode(sys.getfilesystemencoding())
+            for part in cmdline.split()])
 
 
 def main():
