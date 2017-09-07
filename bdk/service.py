@@ -66,8 +66,8 @@ class TankManager(object):
 
     def run_job(self, job):
         params = {
-            "meta.upload_token": job.get("upload_token"),
-            "meta.jobno": job.get("id"),
+            "uploader.upload_token": job.get("upload_token"),
+            "uploader.jobno": job.get("id"),
         }
         cmdline = self.cmd + " " + \
             ("--lock-dir /tmp " if self.darwin else "") + \
