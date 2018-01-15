@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='bdk',
-    version='0.0.1',
+    version='0.0.2',
     description='Tank manager',
     author='Alexey Lavrenuke',
     author_email='direvius@gmail.com',
