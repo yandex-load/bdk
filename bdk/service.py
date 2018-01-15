@@ -33,35 +33,43 @@ class TankManager(object):
         self.tankname = tankname
 
     def claim(self):
-        resp = requests.get(
-            self.api+"/firestarter/claim_job",
-            params=dict(tank=self.tankname), verify=False)
-        if resp.status_code == 200:
-            try:
-                data = resp.json()
-                if data.get("success") == 1:
-                    try:
-                        self.run_job(data["job"])
-                    except KeyError:
-                        log.error(
-                            "Malformed JSON: no job section.\n%s\n",
-                            simplejson.dumps(data))
-                else:
-                    log.error(
-                        "Error claiming job: %s",
-                        data.get("error", simplejson.dumps(data)))
-            except simplejson.JSONDecodeError:
-                log.exception("Error decoding JSON response:\n%s\n", resp.text)
-        elif resp.status_code == 404:
-            log.debug(resp.text)
-        elif resp.status_code == 400:
-            log.exception("Bad request. Response: %s", resp.text)
+        try:
+            resp = requests.get(
+                self.api+"/firestarter/claim_job",
+                params=dict(tank=self.tankname), verify=False)
+        except requests.ConnectionError, requests.ConnectTimeout:
+            log.exception('Connection error, retrying later', exc_info=True)
+            return
+        except Exception:
+            log.error('Unknown exception! Fixme!', exc_info=True)
+            return
         else:
-            log.error("Non-200 response code: %s", resp.status_code)
-            try:
-                log.error("\n%s\n", resp.json().get("error", resp.text))
-            except simplejson.JSONDecodeError:
-                log.error(resp.text)
+            if resp.status_code == 200:
+                try:
+                    data = resp.json()
+                    if data.get("success") == 1:
+                        try:
+                            self.run_job(data["job"])
+                        except KeyError:
+                            log.error(
+                                "Malformed JSON: no job section.\n%s\n",
+                                simplejson.dumps(data))
+                    else:
+                        log.error(
+                            "Error claiming job: %s",
+                            data.get("error", simplejson.dumps(data)))
+                except simplejson.JSONDecodeError:
+                    log.exception("Error decoding JSON response:\n%s\n", resp.text)
+            elif resp.status_code == 404:
+                log.debug(resp.text)
+            elif resp.status_code == 400:
+                log.exception("Bad request. Response: %s", resp.text)
+            else:
+                log.error("Non-200 response code: %s", resp.status_code)
+                try:
+                    log.error("\n%s\n", resp.json().get("error", resp.text))
+                except simplejson.JSONDecodeError:
+                    log.error(resp.text)
         return resp.status_code
 
     def run_job(self, job):
@@ -124,6 +132,7 @@ def main():
         if tm.claim() == 404:
             logging.info("No jobs.")
         time.sleep(args.interval)
+
 
 if __name__ == '__main__':
     main()
