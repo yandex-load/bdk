@@ -1,0 +1,54 @@
+core:
+  type: dict
+  schema:
+    enabled:
+      type: boolean
+      default: true
+    artifacts_dir:
+      type: string
+      default: ./logs
+    version:
+      type: integer
+      default: 1
+
+configuration:
+  type: dict
+  schema:
+    enabled:
+      type: boolean
+      default: true
+    api_address:
+      type: string
+      default: "https://lunapark.yandex-team.ru"
+    interval:
+      type: integer
+      default: 10
+    api_claim_handler:
+      type: string
+      default: "/firestarter/claim_job"
+
+executable:
+  type: dict
+  schema:
+    enabled:
+      type: boolean
+      default: true
+    params:
+      type: dict
+      required: true
+    cmd:
+      type: string
+      required: true
+
+capabilities:
+  type: dict
+  schema:
+    enabled:
+      type: boolean
+      default: true
+    host:
+      type: dict
+      name:
+        type: string
+        required: true
+

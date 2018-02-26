@@ -4,15 +4,17 @@ from setuptools import setup
 
 setup(
     name='bdk',
-    version='0.0.2',
-    description='Tank manager',
+    version='0.0.3',
+    description='Task manager',
     author='Alexey Lavrenuke',
     author_email='direvius@gmail.com',
     url='https://github.yandex-team.ru/load/bdk/',
     packages=['bdk'],
     package_data={'bdk': []},
     install_requires=[
-        'requests>=2.11.1', 'simplejson'
+        'requests>=2.11.1',
+        'simplejson',
+        'netort>=0.0.6'
     ],
     entry_points={
         'console_scripts': [
