@@ -17,14 +17,15 @@ class BDKCore(object):
     def __init__(self, config):
         self.config = ValidatedConfig(config, DYNAMIC_OPTIONS, self.PACKAGE_SCHEMA_PATH)
 
-        self.myname = self.config.get_option(self, 'capabilites', 'host').get('name')
+        self.myname = self.config.get_option('capabilities', 'host').get('name')
+        logger.info('My name: %s', self.myname)
 
-        self.cmd = self.config.get_option(self, 'executable', 'cmd')
-        self.cmd_params = self.config.get_option(self, 'executable', 'params')
+        self.cmd = self.config.get_option('executable', 'cmd')
+        self.cmd_params = self.config.get_option('executable', 'params')
 
-        self.api_poll_interval = self.config.get_option(self, 'configuration', 'interval')
-        self.api_address = self.config.get_option(self, 'configuration', 'api_address')
-        self.api_handler = self.config.get_option(self, 'configuration', 'api_claim_handler')
+        self.api_poll_interval = self.config.get_option('configuration', 'interval')
+        self.api_address = self.config.get_option('configuration', 'api_address')
+        self.api_handler = self.config.get_option('configuration', 'api_claim_handler')
 
         self.claim_request = "{api_address}/{api_handler}".format(
             api_address=self.api_address, api_handler=self.api_handler
@@ -80,7 +81,7 @@ class BDKCore(object):
             if resp.status_code == 200:
                 return resp.text
             elif resp.status_code == 404:
-                logger.debug('No jobs answer from api, 404: %s', resp.text)
+                logger.debug('No jobs from api, 404: %s', resp.text)
             elif resp.status_code == 400:
                 logger.exception("Bad request. Response: %s", resp.text)
             else:

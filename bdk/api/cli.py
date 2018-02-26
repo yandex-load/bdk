@@ -14,17 +14,14 @@ logger = logging.getLogger(__name__)
 def main():
     parser = argparse.ArgumentParser(
         description='Process jobs from Task task queue.')
-    parser.add_argument('-d', '--debug', action='store_true')
+    parser.add_argument('-q', '--quiet', action='store_true', dest='quiet', default=False)
+    parser.add_argument('-d', '--debug', '--verbose', action='store_true', dest='verbose', default=False)
     parser.add_argument('-c', '--config', dest='config', default='/etc/bdk.yaml')
     parser.add_argument('-l', '--log', dest='log', default='bdk.log')
     args = parser.parse_args()
 
     init_logging(args.log, args.verbose, args.quiet)
-    logging.basicConfig(
-        level="DEBUG" if args.debug else "INFO",
-        format='%(asctime)s [%(levelname)s] [BDK] %(filename)s:%(lineno)d %(message)s')
-
-    if not args.debug:
+    if not args.verbose:
         logging.getLogger("requests").setLevel("ERROR")
 
     cfg_dict = {}

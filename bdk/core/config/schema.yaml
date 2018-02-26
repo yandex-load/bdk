@@ -42,13 +42,15 @@ executable:
 
 capabilities:
   type: dict
+  allow_unknown: true
   schema:
     enabled:
       type: boolean
       default: true
     host:
       type: dict
-      name:
-        type: string
-        required: true
+      schema:
+        name:
+          type: string
+          required: true
 
