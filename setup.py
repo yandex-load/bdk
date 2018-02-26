@@ -18,6 +18,6 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'bdk = bdk.service:main',
+            'bdk = bdk.api.cli:main',
         ],
     },)
