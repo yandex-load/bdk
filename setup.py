@@ -4,11 +4,11 @@ from setuptools import setup, find_packages
 
 setup(
     name='bdk',
-    version='0.0.5',
+    version='0.0.6',
     description='Task manager',
-    author='Yandex load team',
+    author='Yandex-load team',
     author_email='load@yandex-team.ru',
-    url='https://github.yandex-team.ru/load/bdk/',
+    url='https://github.com/yandex-load/bdk',
     packages=find_packages(exclude=["tests", "tmp", "docs", "data"]),
     install_requires=[
         'requests>=2.11.1',

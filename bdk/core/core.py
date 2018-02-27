@@ -11,6 +11,9 @@ from netort.validated_config import ValidatedConfig
 logger = logging.getLogger(__name__)
 
 
+# curl -X POST -H"Content-Type:text/plain" --data-binary @./test.yaml https://lunapark.yandex-team.ru/api/v2/jobs/?format=yaml
+
+
 class BDKCore(object):
     PACKAGE_SCHEMA_PATH = 'bdk.core'
 
@@ -18,7 +21,6 @@ class BDKCore(object):
         self.config = ValidatedConfig(config, DYNAMIC_OPTIONS, self.PACKAGE_SCHEMA_PATH)
 
         self.myname = self.config.get_option('capabilities', 'host').get('name')
-        logger.info('My name: %s', self.myname)
 
         self.cmd = self.config.get_option('executable', 'cmd')
         self.cmd_params = self.config.get_option('executable', 'params')
@@ -38,6 +40,8 @@ class BDKCore(object):
 
     def configure(self):
         logger.info('Configuring...')
+        logger.info("My name: %s", self.myname)
+        logger.debug('Claim backend: %s', self.claim_request)
 
     def start(self):
         logger.info('Starting...')
@@ -79,7 +83,7 @@ class BDKCore(object):
             return
         else:
             if resp.status_code == 200:
-                return resp.text
+                return resp
             elif resp.status_code == 404:
                 logger.debug('No jobs from api, 404: %s', resp.text)
             elif resp.status_code == 400:
@@ -89,14 +93,17 @@ class BDKCore(object):
                 logger.debug('Failed to claim job: %s', resp.text, exc_info=True)
 
     def __run_job(self, job):
+        for item in job:
+            logger.info('Item: %s', item)
         params = {
             "meta.upload_token": job.get("upload_token"),
             "meta.jobno": job.get("id"),
         }
-        cmdline = self.cmd + " " + \
-            ("--lock-dir /tmp " if self.darwin else "") + \
-            " ".join("-o %s=%s" % (k, v) for k, v in params.items()) + \
-            " -c %s/api/job/%s/configinitial.txt" % (self.api, job.get("id"))
+        cmdline = self.cmd
+        #+ " " + \
+        #    ("--lock-dir /tmp " if self.config.get_option('core', 'darwin') + \
+        #    " ".join("-o %s=%s" % (k, v) for k, v in params.items()) + \
+        #    " -c %s/api/job/%s/configinitial.txt" % (self.api, job.get("id"))
 
         logger.info("Running Task: %s", cmdline)
         subprocess.call([

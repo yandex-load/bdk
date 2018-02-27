@@ -19,7 +19,7 @@ configuration:
       default: true
     api_address:
       type: string
-      default: "https://lunapark.yandex-team.ru"
+      required: true
     interval:
       type: integer
       default: 10
