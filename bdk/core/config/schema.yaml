@@ -34,8 +34,7 @@ executable:
       type: boolean
       default: true
     params:
-      type: dict
-      required: true
+      type: list
     cmd:
       type: string
       required: true

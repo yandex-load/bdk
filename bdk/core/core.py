@@ -1,17 +1,27 @@
 import requests
 import simplejson
-import subprocess
-import sys
 import logging
 import time
+import tempfile
+import yaml
 
 from bdk.core.config.dynamic_options import DYNAMIC_OPTIONS
+from bdk.executors.universal import UniversalExecutor
+
 from netort.validated_config import ValidatedConfig
 
 logger = logging.getLogger(__name__)
 
 
-# curl -X POST -H"Content-Type:text/plain" --data-binary @./test.yaml https://lunapark.yandex-team.ru/api/v2/jobs/?format=yaml
+# curl -X POST -H"Content-Type:text/plain" --data-binary @./bdk.yaml https://lunapark.yandex-team.ru/api/v2/jobs/?format=yaml
+
+
+class ExecutorFactory(object):
+    def __init__(self):
+        self.executors = {}  # for future custom executors
+
+    def detect_executor(self, cmd):
+        return self.executors[cmd] if cmd in self.executors else UniversalExecutor
 
 
 class BDKCore(object):
@@ -23,58 +33,57 @@ class BDKCore(object):
         self.myname = self.config.get_option('capabilities', 'host').get('name')
 
         self.cmd = self.config.get_option('executable', 'cmd')
-        self.cmd_params = self.config.get_option('executable', 'params')
 
         self.api_poll_interval = self.config.get_option('configuration', 'interval')
         self.api_address = self.config.get_option('configuration', 'api_address')
         self.api_handler = self.config.get_option('configuration', 'api_claim_handler')
 
-        self.claim_request = "{api_address}/{api_handler}".format(
-            api_address=self.api_address, api_handler=self.api_handler
+        self.claim_request = "{api_address}/{api_handler}?tank={myname}".format(
+            api_address=self.api_address, api_handler=self.api_handler, myname=self.myname
         )
-        self.claim_params = {
-            'tank': self.myname
-        }
 
         self.interrupted = False
+        self.executor = None
 
     def configure(self):
         logger.info('Configuring...')
         logger.info("My name: %s", self.myname)
         logger.debug('Claim backend: %s', self.claim_request)
 
+        factory = ExecutorFactory()
+        self.executor = factory.detect_executor(self.cmd)(self.config)
+        logger.info('Using %s for %s', self.executor, self.cmd)
+
     def start(self):
         logger.info('Starting...')
-        while not self.interrupted:
+        while True:
             job = self.__claim()
             if not job:
                 logging.info("No jobs.")
                 time.sleep(self.api_poll_interval)
             else:
-                try:
-                    job_data = job.json()
-                    if job_data.get("success"):
-                        try:
-                            self.__run_job(job_data["job"])
-                        except KeyError:
-                            logger.error(
-                                "Malformed JSON: no job section.\n%s\n",
-                                simplejson.dumps(job_data), exc_info=True
+                if job.get('success'):
+                    if job.get('job'):
+                        self.executor.run(
+                            self.__dump_job_config_to_disk(
+                                job.get('job')
                             )
+                        )
                     else:
-                        logger.error(
-                            "Error claiming job: %s",
-                            job_data.get("error", simplejson.dumps(job_data)))
-                except simplejson.JSONDecodeError:
-                    logger.exception("Error decoding JSON response:\n%s\n", job.text)
+                        logger.info('There is no `job` section in job. Nothing to do...')
+                        logger.debug('There is no `job` section in job. Config: %s', job, exc_info=True)
+                        continue
 
-    def stop(self):
-        logger.info('Got interrupt signal!')
-        self.interrupted = True
+    @staticmethod
+    def __dump_job_config_to_disk(config_contents):
+        conffile = tempfile.mktemp()
+        with open(conffile, 'wb') as f:
+            f.write(yaml.safe_dump(config_contents))
+        return conffile
 
     def __claim(self):
         try:
-            resp = requests.get(self.claim_request, params=self.claim_params, verify=False)
+            resp = requests.get(self.claim_request, verify=False)
         except requests.ConnectionError, requests.ConnectTimeout:
             logger.exception('Connection error, retrying in %s...', self.api_poll_interval, exc_info=True)
             return
@@ -83,7 +92,12 @@ class BDKCore(object):
             return
         else:
             if resp.status_code == 200:
-                return resp
+                try:
+                    claimed_job = resp.json()
+                except simplejson.JSONDecodeError:
+                    logger.exception("Error decoding JSON response:\n%s\n", resp.text)
+                else:
+                    return claimed_job
             elif resp.status_code == 404:
                 logger.debug('No jobs from api, 404: %s', resp.text)
             elif resp.status_code == 400:
@@ -91,21 +105,3 @@ class BDKCore(object):
             else:
                 logger.error("Non-200 response code: %s", resp.status_code)
                 logger.debug('Failed to claim job: %s', resp.text, exc_info=True)
-
-    def __run_job(self, job):
-        for item in job:
-            logger.info('Item: %s', item)
-        params = {
-            "meta.upload_token": job.get("upload_token"),
-            "meta.jobno": job.get("id"),
-        }
-        cmdline = self.cmd
-        #+ " " + \
-        #    ("--lock-dir /tmp " if self.config.get_option('core', 'darwin') + \
-        #    " ".join("-o %s=%s" % (k, v) for k, v in params.items()) + \
-        #    " -c %s/api/job/%s/configinitial.txt" % (self.api, job.get("id"))
-
-        logger.info("Running Task: %s", cmdline)
-        subprocess.call([
-            part.decode(sys.getfilesystemencoding())
-            for part in cmdline.split()])

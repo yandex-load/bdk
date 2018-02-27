@@ -37,9 +37,9 @@ def main():
         core.configure()
         core.start()
     except KeyboardInterrupt:
+        # FIXME
         logger.info('Keyboard interrupt, trying graceful shutdown. Do not press interrupt again...')
-        core.stop()
-    except:
+    except Exception:
         logger.error('Uncaught exception in core\n', exc_info=True)
 
 
