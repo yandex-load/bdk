@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='bdk',
-    version='0.0.8',
+    version='0.0.9',
     description='Task manager',
     author='Yandex-load team',
     author_email='load@yandex-team.ru',
