@@ -14,5 +14,8 @@ executable:
 
 capabilities:
   host:
-    name: 'netort-incredible-bdk'
-    other: 'test'
+    - fqdn: 'netort-incredible-bdk.macbook'
+  executor:
+    - type: 'volta'
+    - tag: ['volta-netort', 'macbook']
+    - phone.model: some_phone_model
