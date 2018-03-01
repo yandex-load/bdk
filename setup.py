@@ -23,6 +23,5 @@ setup(
     },
     package_data={
         'bdk.core': ['config/*'],
-        'bdk.core': ['config_sample/*'],
     },
 )

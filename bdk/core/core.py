@@ -94,7 +94,7 @@ class BDKCore(object):
         else:
             if resp.status_code == 200:
                 try:
-                    claimed_job = resp.json()
+                    claimed_job = yaml.safe_load(resp.text)
                 except simplejson.JSONDecodeError:
                     logger.exception("Error decoding JSON response:\n%s\n", resp.text)
                 else:
