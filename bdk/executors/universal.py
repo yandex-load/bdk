@@ -13,10 +13,12 @@ class UniversalExecutor(AbstractExecutor):
         self.executable = config.get_option('executable', 'cmd')
         self.params = config.get_option('executable', 'params')
 
-    def run(self, jobconffile):
+    def run(self, job_conf_file):
         prepared_params = []
         for param in self.params:
-            prepared_params = prepared_params + self.__expand_param(param, jobconffile)
+            prepared_params = prepared_params + self.__expand_param(
+                param, {'job_config': job_conf_file}
+            )
         logger.debug('Prepared params: %s', prepared_params)
         self.cmdline = "{executable} {params}".format(
             executable=self.executable,
@@ -28,18 +30,24 @@ class UniversalExecutor(AbstractExecutor):
         ])
 
     @staticmethod
-    def __expand_param(param, jobconffile):
+    def __expand_param(param, variable_params):
+        parsed_params = []
         if isinstance(param, basestring):
-            if param == '$conf':
-                param = jobconffile
-            return [param]
-
-        if isinstance(param, dict):
-            res = []
+            if '{job_config}' in param:
+                param = param.format(job_config=variable_params.get('job_config'))
+            parsed_params.append(param)
+        elif isinstance(param, (list, tuple)):
+            for key in param:
+                if '{job_config}'in key:
+                    key = key.format(job_config=variable_params.get('job_config'))
+                parsed_params.append(key)
+        elif isinstance(param, dict):
             for key, value in param.items():
-                if key == '$conf':
-                    key = jobconffile
-                if value == '$conf':
-                    value = jobconffile
-                res.append("{key} {value}".format(key=key, value=value))
-            return res
+                if '{job_config}' in key:
+                    key = key.format(job_config=variable_params.get('job_config'))
+                if '{job_config}' in value:
+                    value = value.format(job_config=variable_params.get('job_config'))
+                parsed_params.append(
+                    "{key} {value}".format(key=key, value=value)
+                )
+        return parsed_params

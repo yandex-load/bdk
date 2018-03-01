@@ -1,0 +1,18 @@
+configuration:
+  api_address: "https://hostname.tld"
+
+executable:
+  cmd: docker
+  params:
+    - run
+    - "-v": '/dev/bus/usb:/dev/bus/usb'
+    - "-v": '/dev:/dev'
+    - "-v": '{job_config}'
+    - "--net": 'host'
+    - "--privileged"
+    - "registry.hostname.tld/image_name"
+
+capabilities:
+  host:
+    name: 'netort-incredible-bdk'
+    other: 'test'
