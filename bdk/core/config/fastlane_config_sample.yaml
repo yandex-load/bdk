@@ -1,0 +1,16 @@
+configuration:
+  api_address: "https://lunapark.yandex-team.ru"
+
+executable:
+  cmd: fastlane
+  params:
+    - power
+    - "jobConfig:{job_config}"
+
+capabilities:
+  host:
+    - fqdn: 'netort-incredible-bdk.macbook'
+  executor:
+    - type: 'volta'
+    - tag: ['volta-netort', 'macbook']
+    - phone.model: some_phone_model
