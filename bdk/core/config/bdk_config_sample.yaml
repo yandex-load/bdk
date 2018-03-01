@@ -7,7 +7,7 @@ executable:
     - run
     - "-v": '/dev/bus/usb:/dev/bus/usb'
     - "-v": '/dev:/dev'
-    - "-v": '{job_config}'
+    - "-v": '{job_config}:/some/dir/config.yaml'
     - "--net": 'host'
     - "--privileged"
     - "registry.hostname.tld/image_name"
