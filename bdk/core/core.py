@@ -26,6 +26,7 @@ class ExecutorFactory(object):
 
 class BDKCore(object):
     PACKAGE_SCHEMA_PATH = 'bdk.core'
+    FMT = 'yaml'
 
     def __init__(self, config):
         self.config = ValidatedConfig(config, DYNAMIC_OPTIONS, self.PACKAGE_SCHEMA_PATH)
@@ -38,8 +39,8 @@ class BDKCore(object):
         self.api_address = self.config.get_option('configuration', 'api_address')
         self.api_handler = self.config.get_option('configuration', 'api_claim_handler')
 
-        self.claim_request = "{api_address}/{api_handler}?tank={myname}".format(
-            api_address=self.api_address, api_handler=self.api_handler, myname=self.myname
+        self.claim_request = "{api_address}/{api_handler}?tank={myname}&fmt={fmt}".format(
+            api_address=self.api_address, api_handler=self.api_handler, myname=self.myname, fmt=self.FMT
         )
 
         self.interrupted = False
