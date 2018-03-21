@@ -1,9 +1,10 @@
-import requests
+from requests import Request, ConnectTimeout, ConnectionError, Session
 import simplejson
 import logging
 import time
 import tempfile
 import yaml
+import socket
 
 from bdk.core.config.dynamic_options import DYNAMIC_OPTIONS
 from bdk.executors.universal import UniversalExecutor
@@ -30,26 +31,32 @@ class BDKCore(object):
 
     def __init__(self, config):
         self.config = ValidatedConfig(config, DYNAMIC_OPTIONS, self.PACKAGE_SCHEMA_PATH)
-
-        self.myname = self.config.get_option('capabilities', 'host').get('name')
-
+        self.capabilities = self.config.get_option('capabilities', 'config')
         self.cmd = self.config.get_option('executable', 'cmd')
+        self.myname = self.config.get_option('capabilities', 'host_name', socket.getfqdn())
 
         self.api_poll_interval = self.config.get_option('configuration', 'interval')
         self.api_address = self.config.get_option('configuration', 'api_address')
         self.api_handler = self.config.get_option('configuration', 'api_claim_handler')
 
-        self.claim_request = "{api_address}/{api_handler}?tank={myname}&fmt={fmt}".format(
-            api_address=self.api_address, api_handler=self.api_handler, myname=self.myname, fmt=self.FMT
+        self.capabilities = yaml.dump({'capabilities': self.capabilities})
+
+        self.lpq_session = Session()
+        req = Request(
+            'POST',
+            "{api_address}{api_handler}".format(
+                api_address=self.api_address, api_handler=self.api_handler
+            ),
+            data=self.capabilities
         )
+        self.claim_request = self.lpq_session.prepare_request(req)
 
         self.interrupted = False
         self.executor = None
 
     def configure(self):
         logger.info('Configuring...')
-        logger.info("My name: %s", self.myname)
-        logger.debug('Claim backend: %s', self.claim_request)
+        logger.info('My name: %s', self.myname)
 
         factory = ExecutorFactory()
         self.executor = factory.detect_executor(self.cmd)(self.config)
@@ -63,17 +70,15 @@ class BDKCore(object):
                 logging.info("No jobs.")
                 time.sleep(self.api_poll_interval)
             else:
-                if job.get('success'):
-                    if job.get('job'):
-                        self.executor.run(
-                            self.__dump_job_config_to_disk(
-                                job.get('job')
-                            )
-                        )
-                    else:
-                        logger.info('There is no `job` section in job. Nothing to do...')
-                        logger.debug('There is no `job` section in job. Config: %s', job, exc_info=True)
-                        continue
+                logger.info('Task id: %s', job.get('task_id'))
+                if job.get('config'):
+                    self.executor.run(
+                        self.__dump_job_config_to_disk(job.get('config'))
+                    )
+                else:
+                    logger.info('There is no `job` section in job. Nothing to do...')
+                    logger.debug('There is no `job` section in job. Config: %s', job, exc_info=True)
+                    continue
 
     @staticmethod
     def __dump_job_config_to_disk(config_contents):
@@ -84,8 +89,8 @@ class BDKCore(object):
 
     def __claim(self):
         try:
-            resp = requests.get(self.claim_request, verify=False)
-        except requests.ConnectionError, requests.ConnectTimeout:
+            resp = self.lpq_session.send(self.claim_request, verify=False)
+        except (ConnectionError, ConnectTimeout):
             logger.exception('Connection error, retrying in %s...', self.api_poll_interval, exc_info=True)
             return
         except Exception:
@@ -93,6 +98,7 @@ class BDKCore(object):
             return
         else:
             if resp.status_code == 200:
+                logger.debug('Received job: %s', resp.text)
                 try:
                     claimed_job = yaml.safe_load(resp.text)
                 except simplejson.JSONDecodeError:
