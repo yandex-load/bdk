@@ -14,7 +14,7 @@ setup(
         'requests>=2.11.1',
         'simplejson',
         'netort>=0.0.11',
-        'pyyaml'
+        'pyyaml', 'retrying'
     ],
     entry_points={
         'console_scripts': [
