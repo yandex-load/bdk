@@ -44,17 +44,15 @@ class BDKCore(object):
 
     def __init__(self, config):
         self.config = ValidatedConfig(config, DYNAMIC_OPTIONS, self.PACKAGE_SCHEMA_PATH)
-        self.capabilities = self.config.get_option('executable', 'capabilities')
         self.cmd = self.config.get_option('executable', 'cmd')
-        self.myname = self.capabilities.get('host_name', socket.getfqdn())
-
-        # Used by LPQ for internal usage (like datacenter detection etc)
-        self.capabilities['__fqdn'] = socket.getfqdn()
 
         self.api_poll_interval = self.config.get_option('configuration', 'interval')
         self.api_address = self.config.get_option('configuration', 'api_address')
         self.api_handler = self.config.get_option('configuration', 'api_claim_handler')
 
+        self.capabilities = self.config.get_option('executable', 'capabilities')
+        self.myname = self.capabilities.get('host_name', socket.getfqdn())
+        self.set_default_capabilities()
         self.capabilities = yaml.dump({'capabilities': self.capabilities})
 
         self.claim_request = "{api_address}{api_handler}".format(
@@ -64,6 +62,9 @@ class BDKCore(object):
 
         self.interrupted = False
         self.executor = None
+
+    def set_default_capabilities(self):
+        self.capabilities['__fqdn'] = socket.getfqdn()  # Used by LPQ for internal usage (like datacenter detection etc)
 
     def configure(self):
         logger.info('Configuring...')
