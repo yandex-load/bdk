@@ -7,10 +7,10 @@ executable:
     - power
     - "jobConfig:{job_config}"
 
-capabilities:
-  host:
-    - fqdn: 'netort-incredible-bdk.macbook'
-  executor:
-    - type: 'volta'
-    - tag: ['volta-netort', 'macbook']
-    - phone.model: some_phone_model
+  capabilities:
+    host:
+      - fqdn: 'netort-incredible-bdk.macbook'
+    executor:
+      - type: 'volta'
+      - tag: ['volta-netort', 'macbook']
+      - phone.model: some_phone_model

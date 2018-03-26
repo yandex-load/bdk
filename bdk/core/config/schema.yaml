@@ -25,7 +25,7 @@ configuration:
       default: 10
     api_claim_handler:
       type: string
-      default: "/firestarter/claim_job"
+      default: "/claim_job.yaml"
 
 executable:
   type: dict
@@ -38,18 +38,13 @@ executable:
     cmd:
       type: string
       required: true
-
-capabilities:
-  type: dict
-  allow_unknown: true
-  schema:
-    enabled:
-      type: boolean
-      default: true
-    host:
+    capabilities:
       type: dict
+      allow_unknown: true
       schema:
-        name:
+        enabled:
+          type: boolean
+          default: true
+        executor_type:
           type: string
           required: true
-

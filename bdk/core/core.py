@@ -44,9 +44,12 @@ class BDKCore(object):
 
     def __init__(self, config):
         self.config = ValidatedConfig(config, DYNAMIC_OPTIONS, self.PACKAGE_SCHEMA_PATH)
-        self.capabilities = self.config.get_option('capabilities', 'config')
+        self.capabilities = self.config.get_option('executable', 'capabilities')
         self.cmd = self.config.get_option('executable', 'cmd')
-        self.myname = self.config.get_option('capabilities', 'host_name', socket.getfqdn())
+        self.myname = self.capabilities.get('host_name', socket.getfqdn())
+
+        # Used by LPQ for internal usage (like datacenter detection etc)
+        self.capabilities['__fqdn'] = socket.getfqdn()
 
         self.api_poll_interval = self.config.get_option('configuration', 'interval')
         self.api_address = self.config.get_option('configuration', 'api_address')

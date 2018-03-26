@@ -17,7 +17,9 @@ class UniversalExecutor(AbstractExecutor):
         prepared_params = []
         for param in self.params:
             prepared_params = prepared_params + self.__expand_param(
-                param, {'job_config': job_conf_file}
+                param, {
+                    'job_config': job_conf_file
+                }
             )
         logger.debug('Prepared params: %s', prepared_params)
         self.cmdline = "{executable} {params}".format(
