@@ -1,5 +1,11 @@
 # bdk
 
+
+DEPRECATED.  
+Use https://github.com/yandex-load/bdk  
+and its branch 'old_bdk' for old-style bdk
+==========================================
+
 Task queue client for Yandex Tank, Volta and other runners
 
 You should create config for bdk:
