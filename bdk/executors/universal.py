@@ -28,9 +28,9 @@ class UniversalExecutor(AbstractExecutor):
             params=" ".join(prepared_params)
         )
         logger.info('Starting %s', self.cmdline)
-        subprocess.call(
-            shlex.split(self.cmdline)
-        )
+        splitted_args = shlex.split(self.cmdline)
+        logger.info('Executing: %s', splitted_args)
+        subprocess.call(splitted_args)
 
     @staticmethod
     def __expand_param(param, variable_params):
