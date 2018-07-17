@@ -1,6 +1,7 @@
 import logging
 import subprocess
 import sys
+import shlex
 
 from bdk.common.interfaces import AbstractExecutor
 
@@ -27,9 +28,9 @@ class UniversalExecutor(AbstractExecutor):
             params=" ".join(prepared_params)
         )
         logger.info('Starting %s', self.cmdline)
-        subprocess.call([
-            part.decode(sys.getfilesystemencoding()) for part in self.cmdline.split()
-        ])
+        subprocess.call(
+            shlex.split(self.cmdline)
+        )
 
     @staticmethod
     def __expand_param(param, variable_params):
