@@ -4,5 +4,5 @@ class AbstractExecutor(object):
         self.config = config
         self.cmdline = None
 
-    def run(self, job):
+    def run(self, job, stdout_callback):
         raise RuntimeError('Abstract method should be overriden')

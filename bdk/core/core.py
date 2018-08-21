@@ -1,3 +1,5 @@
+import urlparse
+
 import requests
 import simplejson
 import logging
@@ -24,12 +26,6 @@ RETRY_ARGS = dict(
 )
 
 
-@retry(**RETRY_ARGS)
-def send_chunk(url, data, timeout=5):
-    r = requests.post(url, data=data, verify=False, timeout=timeout)
-    return r
-
-
 class ExecutorFactory(object):
     def __init__(self):
         self.executors = {}  # for future custom executors
@@ -47,24 +43,19 @@ class BDKCore(object):
         self.cmd = self.config.get_option('executable', 'cmd')
 
         self.api_poll_interval = self.config.get_option('configuration', 'interval')
-        self.api_address = self.config.get_option('configuration', 'api_address')
-        self.api_handler = self.config.get_option('configuration', 'api_claim_handler')
 
-        self.capabilities = self.config.get_option('executable', 'capabilities')
-        self.myname = self.capabilities.get('host_name', socket.getfqdn())
-        self.set_default_capabilities()
-        self.capabilities = yaml.dump({'capabilities': self.capabilities})
+        capabilities = self.config.get_option('executable', 'capabilities')
+        capabilities['__fqdn'] = socket.getfqdn()  # Used by LPQ for internal usage (like datacenter detection etc)
+        self.myname = capabilities.get('host_name', socket.getfqdn())
 
-        self.claim_request = "{api_address}{api_handler}".format(
-            api_address=self.api_address, api_handler=self.api_handler
-        )
-        self.claim_data = self.capabilities
+        self.lpq_client = LPQClient(yaml.dump({'capabilities': capabilities}),
+                                    self.config.get_option('configuration', 'api_address'),
+                                    self.config.get_option('configuration', 'api_claim_handler'),
+                                    self.config.get_option('configuration', 'api_status_handler'),
+                                    self.config.get_option('configuration', 'api_stdout_handler'))
 
         self.interrupted = False
         self.executor = None
-
-    def set_default_capabilities(self):
-        self.capabilities['__fqdn'] = socket.getfqdn()  # Used by LPQ for internal usage (like datacenter detection etc)
 
     def configure(self):
         logger.info('Configuring...')
@@ -78,7 +69,7 @@ class BDKCore(object):
         logger.info('Starting...')
         while True:
             try:
-                job = self.__claim()
+                job = self.lpq_client.claim_task()
             except RetryError:
                 logger.warning('Claim job failed!', exc_info=True)
                 time.sleep(self.api_poll_interval)
@@ -87,11 +78,11 @@ class BDKCore(object):
                     logging.info("No jobs.")
                     time.sleep(self.api_poll_interval)
                 else:
-                    logger.info('Task id: %s', job.get('task_id'))
-                    if job.get('config'):
-                        self.executor.run(
-                            self.__dump_job_config_to_disk(job.get('config'))
-                        )
+                    logger.info('Task id: %s', job.id)
+                    if job.config:
+                        return_code = self.executor.run(self.__dump_job_config_to_disk(job.config),
+                                                        job.send_stdout)
+                        job.send_status(return_code)
                     else:
                         logger.info('There is no `job` section in job. Nothing to do...')
                         logger.debug('There is no `job` section in job. Config: %s', job, exc_info=True)
@@ -104,9 +95,28 @@ class BDKCore(object):
             f.write(yaml.safe_dump(config_contents))
         return conffile
 
-    def __claim(self):
+
+@retry(**RETRY_ARGS)
+def retry_post(url, data=None, json=None, timeout=5):
+    r = requests.post(url, data=data, json=json, verify=False, timeout=timeout)
+    return r
+
+
+class LPQClient(object):
+    def __init__(self, capabilities, base_address, claim_endpoint, status_endpoint, stdout_endpoint):
+        self.capabilities = capabilities
+        self.base_address = base_address
+        self.claim_url = urlparse.urljoin(base_address, claim_endpoint)
+        self.status_url = urlparse.urljoin(base_address, status_endpoint)
+        self.stdout_url = urlparse.urljoin(base_address, stdout_endpoint)
+
+    def claim_task(self):
+        """
+
+        :rtype: LPQJob
+        """
         try:
-            resp = send_chunk(url=self.claim_request, data=self.claim_data)
+            resp = retry_post(self.claim_url, data=self.capabilities)
         except RetryError:
             logger.warning('Max number of retries for claim job exceeded', exc_info=True)
             raise
@@ -121,7 +131,7 @@ class BDKCore(object):
                 except simplejson.JSONDecodeError:
                     logger.exception("Error decoding JSON response:\n%s\n", resp.text)
                 else:
-                    return claimed_job
+                    return LPQJob(self, claimed_job)
             elif resp.status_code == 404:
                 logger.debug('No jobs from api, 404: %s', resp.text)
             elif resp.status_code == 400:
@@ -129,3 +139,34 @@ class BDKCore(object):
             else:
                 logger.error("Non-200 response code: %s", resp.status_code)
                 logger.debug('Failed to claim job: %s', resp.text, exc_info=True)
+
+    def get_send_status(self, job_id):
+        endpoint = '/api/job/{}/status'.format(job_id)
+        url = urlparse.urljoin(self.base_address, endpoint)
+
+        def send_status(rc):
+            return retry_post(url, json={'return code': rc})
+
+        return send_status
+
+    def get_send_stdout(self, job_id):
+        endpoint = '/api/job/{}/stdout'.format(job_id)
+        url = urlparse.urljoin(self.base_address, endpoint)
+
+        def send_stdout(content):
+            return retry_post(url, json={'stdout': content})
+
+        return send_stdout
+
+
+class LPQJob(object):
+
+    def __init__(self, lpq_client, job_data):
+        """
+
+        :type lpq_client: LPQClient
+        """
+        self.id = job_data.get('task_id')
+        self.config = job_data.get('config')
+        self.send_status = lpq_client.get_send_status(self.id)
+        self.send_stdout = lpq_client.get_send_stdout(self.id)
