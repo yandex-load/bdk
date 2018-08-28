@@ -1,4 +1,6 @@
+import threading
 import urlparse
+from Queue import Queue, Empty
 
 import requests
 import simplejson
@@ -50,10 +52,7 @@ class BDKCore(object):
 
         self.lpq_client = LPQClient(yaml.dump({'capabilities': capabilities}),
                                     self.config.get_option('configuration', 'api_address'),
-                                    self.config.get_option('configuration', 'api_claim_handler'),
-                                    self.config.get_option('configuration', 'api_status_handler'),
-                                    self.config.get_option('configuration', 'api_stdout_handler'))
-
+                                    self.config.get_option('configuration', 'api_claim_handler'))
         self.interrupted = False
         self.executor = None
 
@@ -80,8 +79,9 @@ class BDKCore(object):
                 else:
                     logger.info('Task id: %s', job.id)
                     if job.config:
-                        return_code = self.executor.run(self.__dump_job_config_to_disk(job.config),
-                                                        job.send_stdout)
+                        with job.stdout_sender() as sender:
+                            return_code = self.executor.run(self.__dump_job_config_to_disk(job.config),
+                                                            sender)
                         job.send_status(return_code)
                     else:
                         logger.info('There is no `job` section in job. Nothing to do...')
@@ -102,13 +102,59 @@ def retry_post(url, data=None, json=None, timeout=5):
     return r
 
 
+class SenderThread(threading.Thread):
+    def __init__(self, queue, sender_method):
+        """
+
+        :type queue: Queue
+        """
+        threading.Thread.__init__(self)
+        self.queue = queue
+        self.sender_method = sender_method
+        self.finished = threading.Event()
+
+    def run(self):
+        while not self.finished.is_set():
+            try:
+                data = self.queue.get_nowait()
+            except Empty:
+                continue
+            else:
+                try:
+                    self.sender_method(data)
+                except RetryError:
+                    logging.error('Failed to upload stdout chunk', exc_info=True)
+
+    def finish(self):
+        self.finished.set()
+        while not self.queue.empty():
+            self.queue.get_nowait()
+
+
+class StdoutSender(object):
+    def __init__(self, sender_method):
+        self.sender_method = sender_method
+
+    def __enter__(self):
+        self.queue = Queue()
+        self.sender_thread = SenderThread(self.queue, self.sender_method)
+        self.sender_thread.start()
+
+        def send_data(data):
+            self.queue.put(data)
+        return send_data
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_val:
+            logger.error("There was {} error: {}\n{}".format(exc_type, exc_val, exc_tb))
+        self.sender_thread.finish()
+
+
 class LPQClient(object):
-    def __init__(self, capabilities, base_address, claim_endpoint, status_endpoint, stdout_endpoint):
+    def __init__(self, capabilities, base_address, claim_endpoint):
         self.capabilities = capabilities
         self.base_address = base_address
         self.claim_url = urlparse.urljoin(base_address, claim_endpoint)
-        self.status_url = urlparse.urljoin(base_address, status_endpoint)
-        self.stdout_url = urlparse.urljoin(base_address, stdout_endpoint)
 
     def claim_task(self):
         """
@@ -170,3 +216,6 @@ class LPQJob(object):
         self.config = job_data.get('config')
         self.send_status = lpq_client.get_send_status(self.id)
         self.send_stdout = lpq_client.get_send_stdout(self.id)
+
+    def stdout_sender(self):
+        return StdoutSender(self.send_stdout)
