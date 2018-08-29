@@ -52,7 +52,7 @@ class BDKCore(object):
 
         self.lpq_client = LPQClient(yaml.dump({'capabilities': capabilities}),
                                     self.config.get_option('configuration', 'api_address'),
-                                    self.config.get_option('configuration', 'api_claim_handler'))
+                                    )
         self.interrupted = False
         self.executor = None
 
@@ -116,7 +116,7 @@ class SenderThread(threading.Thread):
     def run(self):
         while not self.finished.is_set():
             try:
-                data = self.queue.get_nowait()
+                data = self.queue.get(timeout=1)
             except Empty:
                 continue
             else:
@@ -132,13 +132,15 @@ class SenderThread(threading.Thread):
 
 
 class StdoutSender(object):
-    def __init__(self, sender_method):
+    def __init__(self, job_id, sender_method):
+        self.job_id = job_id
         self.sender_method = sender_method
 
     def __enter__(self):
         self.queue = Queue()
         self.sender_thread = SenderThread(self.queue, self.sender_method)
         self.sender_thread.start()
+        logger.debug("Sender thread for job {} started".format(self.job_id))
 
         def send_data(data):
             self.queue.put(data)
@@ -148,13 +150,15 @@ class StdoutSender(object):
         if exc_val:
             logger.error("There was {} error: {}\n{}".format(exc_type, exc_val, exc_tb))
         self.sender_thread.finish()
+        self.sender_thread.join()
+        logger.debug('Sender thread for job {} joined'.format(self.job_id))
 
 
 class LPQClient(object):
-    def __init__(self, capabilities, base_address, claim_endpoint):
+    def __init__(self, capabilities, base_address):
         self.capabilities = capabilities
         self.base_address = base_address
-        self.claim_url = urlparse.urljoin(base_address, claim_endpoint)
+        self.claim_url = urlparse.urljoin(base_address, '/api/job/claim')
 
     def claim_task(self):
         """
@@ -218,4 +222,4 @@ class LPQJob(object):
         self.send_stdout = lpq_client.get_send_stdout(self.id)
 
     def stdout_sender(self):
-        return StdoutSender(self.send_stdout)
+        return StdoutSender(self.id, self.send_stdout)

@@ -48,3 +48,6 @@ executable:
         executor_type:
           type: string
           required: true
+    shell:
+      type: boolean
+#      description: invoke shell in execution
