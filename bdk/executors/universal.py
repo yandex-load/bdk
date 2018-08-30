@@ -13,8 +13,9 @@ class UniversalExecutor(AbstractExecutor):
         super(UniversalExecutor, self).__init__(config)
         self.executable = config.get_option('executable', 'cmd')
         self.params = config.get_option('executable', 'params')
+        self.shell = config.get_option('executable', 'shell')
 
-    def run(self, job_conf_file):
+    def run(self, job_conf_file, stdout_callback):
         prepared_params = []
         for param in self.params:
             prepared_params = prepared_params + self.__expand_param(
@@ -29,8 +30,17 @@ class UniversalExecutor(AbstractExecutor):
         )
         logger.info('Starting %s', self.cmdline)
         splitted_args = shlex.split(self.cmdline)
-        logger.info('Executing: %s', splitted_args)
-        subprocess.call(splitted_args)
+        if self.shell:
+            popen = subprocess.Popen(self.cmdline, shell=True, stdout=subprocess.PIPE)
+        else:
+            popen = subprocess.Popen(splitted_args, stdout=subprocess.PIPE)
+        logger.info('Started %s', self.cmdline)
+        for stdout_line in iter(popen.stdout.readline, ""):
+            logger.info(stdout_line)
+            stdout_callback(stdout_line)
+        popen.stdout.close()
+        return_code = popen.wait()
+        return return_code
 
     @staticmethod
     def __expand_param(param, variable_params):

@@ -1,0 +1,19 @@
+configuration:
+  api_address: "http://localhost:5000"
+  interval: 3
+
+executable:
+  shell: true
+  cmd: printf
+  params:
+    - '"%s: $(cat {job_config})\n"'
+    - '{1..40}'
+
+  capabilities:
+    host:
+      - fqdn: 'netort-incredible-bdk.macbook'
+    executor:
+      - type: 'volta'
+      - tag: ['volta-netort', 'macbook']
+      - phone.model: some_phone_model
+    executor_type: foo

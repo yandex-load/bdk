@@ -13,7 +13,7 @@ setup(
     install_requires=[
         'requests>=2.11.1',
         'simplejson',
-        'netort>=0.0.14',
+        'netort==0.2.6',
         'pyyaml', 'retrying'
     ],
     entry_points={
