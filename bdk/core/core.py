@@ -36,24 +36,23 @@ class ExecutorFactory(object):
         return self.executors[cmd] if cmd in self.executors else UniversalExecutor
 
 
-class BDKCore(object):
+class BDKCore(threading.Thread):
     PACKAGE_SCHEMA_PATH = 'bdk.core'
     FMT = 'yaml'
 
     def __init__(self, config):
+        super(BDKCore, self).__init__()
         self.config = ValidatedConfig(config, DYNAMIC_OPTIONS, self.PACKAGE_SCHEMA_PATH)
         self.cmd = self.config.get_option('executable', 'cmd')
 
         self.api_poll_interval = self.config.get_option('configuration', 'interval')
+  # Used by LPQ for internal usage (like datacenter detection etc)
+        self.capabilities = self.config.get_option('executable', 'capabilities')
+        self.capabilities['__fqdn'] = socket.getfqdn()
+        self.myname = self.capabilities.get('host_name', socket.getfqdn())
 
-        capabilities = self.config.get_option('executable', 'capabilities')
-        capabilities['__fqdn'] = socket.getfqdn()  # Used by LPQ for internal usage (like datacenter detection etc)
-        self.myname = capabilities.get('host_name', socket.getfqdn())
-
-        self.lpq_client = LPQClient(yaml.dump({'capabilities': capabilities}),
-                                    self.config.get_option('configuration', 'api_address'),
-                                    )
-        self.interrupted = False
+        self.lpq_client = LPQClient(self.config.get_option('configuration', 'api_address'),)
+        self.interrupted = threading.Event()
         self.executor = None
 
     def configure(self):
@@ -64,11 +63,11 @@ class BDKCore(object):
         self.executor = factory.detect_executor(self.cmd)(self.config)
         logger.info('Using %s for %s', self.executor, self.cmd)
 
-    def start(self):
+    def run(self):
         logger.info('Starting...')
-        while True:
+        while not self.interrupted.is_set():
             try:
-                job = self.lpq_client.claim_task()
+                job = self.lpq_client.claim_task(self.capabilities)
             except RetryError:
                 logger.warning('Claim job failed!', exc_info=True)
                 time.sleep(self.api_poll_interval)
@@ -79,6 +78,7 @@ class BDKCore(object):
                 else:
                     logger.info('Task id: %s', job.id)
                     if job.config:
+
                         with job.stdout_sender() as sender:
                             return_code = self.executor.run(self.__dump_job_config_to_disk(job.config),
                                                             sender)
@@ -95,11 +95,19 @@ class BDKCore(object):
             f.write(yaml.safe_dump(config_contents))
         return conffile
 
+    def interrupt(self):
+        self.interrupted.set()
+
 
 @retry(**RETRY_ARGS)
-def retry_post(url, data=None, json=None, timeout=5):
-    r = requests.post(url, data=data, json=json, verify=False, timeout=timeout)
-    return r
+def retry_post(url, data=None, json=None, timeout=5, session=None):
+    """
+    :type session: requests.Session
+    """
+    if session:
+        return session.post(url, data=data, json=json, verify=False, timeout=timeout)
+    else:
+        return requests.post(url, data=data, json=json, verify=False, timeout=timeout)
 
 
 class SenderThread(threading.Thread):
@@ -124,17 +132,33 @@ class SenderThread(threading.Thread):
                     self.sender_method(data)
                 except RetryError:
                     logging.error('Failed to upload stdout chunk', exc_info=True)
+                    self.interrupt()
 
     def finish(self):
         self.finished.set()
         while not self.queue.empty():
+            data = self.queue.get_nowait()
+            try:
+                self.sender_method(data)
+            except RetryError:
+                logging.error('Failed to upload stdout chunk', exc_info=True)
+                self.interrupt()
+                break
+
+    def interrupt(self):
+        self.finished.set()
+        while not self.queue.empty():
             self.queue.get_nowait()
+        logging.error('Upload interrupted')
 
 
 class StdoutSender(object):
-    def __init__(self, job_id, sender_method):
+    def __init__(self, job_id, sender_method, buffer_size=500*1024):
         self.job_id = job_id
         self.sender_method = sender_method
+        self.buffer_size_limit = buffer_size
+        self.buffer_size = 0
+        self.buffer = ''
 
     def __enter__(self):
         self.queue = Queue()
@@ -142,31 +166,44 @@ class StdoutSender(object):
         self.sender_thread.start()
         logger.debug("Sender thread for job {} started".format(self.job_id))
 
-        def send_data(data):
-            self.queue.put(data)
+        def send_data(stdout_line):
+            """
+            :type stdout_line: unicode
+            """
+            if self.buffer_size < self.buffer_size_limit:
+                self.buffer += stdout_line
+                self.buffer_size += len(stdout_line.encode('utf-8')) # unicode
+            else:
+                self.queue.put(self.buffer)
+                self._clear_buffer()
         return send_data
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_val:
             logger.error("There was {} error: {}\n{}".format(exc_type, exc_val, exc_tb))
+        self.queue.put(self.buffer)
+        self._clear_buffer()
         self.sender_thread.finish()
         self.sender_thread.join()
         logger.debug('Sender thread for job {} joined'.format(self.job_id))
 
+    def _clear_buffer(self):
+        self.buffer = ''
+        self.buffer_size = 0
+
 
 class LPQClient(object):
-    def __init__(self, capabilities, base_address):
-        self.capabilities = capabilities
+    def __init__(self, base_address):
         self.base_address = base_address
         self.claim_url = urlparse.urljoin(base_address, '/api/job/claim')
 
-    def claim_task(self):
+    def claim_task(self, capabilities):
         """
 
         :rtype: LPQJob
         """
         try:
-            resp = retry_post(self.claim_url, data=self.capabilities)
+            resp = retry_post(self.claim_url, data=yaml.dump({'capabilities': capabilities}))
         except RetryError:
             logger.warning('Max number of retries for claim job exceeded', exc_info=True)
             raise
@@ -199,12 +236,12 @@ class LPQClient(object):
 
         return send_status
 
-    def get_send_stdout(self, job_id):
+    def get_send_stdout(self, job_id, session):
         endpoint = '/api/job/{}/stdout'.format(job_id)
         url = urlparse.urljoin(self.base_address, endpoint)
 
         def send_stdout(content):
-            return retry_post(url, json={'stdout': content})
+            return retry_post(url, json={'stdout': content}, session=session)
 
         return send_stdout
 
@@ -218,8 +255,9 @@ class LPQJob(object):
         """
         self.id = job_data.get('task_id')
         self.config = job_data.get('config')
+        self.session = requests.Session()
         self.send_status = lpq_client.get_send_status(self.id)
-        self.send_stdout = lpq_client.get_send_stdout(self.id)
+        self.send_stdout = lpq_client.get_send_stdout(self.id, session=self.session)
 
     def stdout_sender(self):
         return StdoutSender(self.id, self.send_stdout)

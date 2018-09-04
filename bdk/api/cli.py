@@ -1,5 +1,7 @@
 import logging
 import argparse
+
+import time
 import yaml
 
 from bdk.core.core import BDKCore
@@ -36,11 +38,21 @@ def main():
     try:
         core.configure()
         core.start()
+        while True:
+            if core.is_alive():
+                time.sleep(0.5)
+            else:
+                core.join()
+                logger.error('Restarting due to an error')
+                core = BDKCore(cfg_dict)
+                core.configure()
+                core.start()
     except KeyboardInterrupt:
-        # FIXME
         logger.info('Keyboard interrupt, trying graceful shutdown. Do not press interrupt again...')
-    except Exception:
-        logger.error('Uncaught exception in core\n', exc_info=True)
+        core.interrupt()
+        core.join()
+    # except Exception:
+    #     logger.error('Uncaught exception in core\n', exc_info=True)
 
 
 if __name__ == '__main__':

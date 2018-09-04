@@ -7,7 +7,7 @@ executable:
   cmd: printf
   params:
     - '"%s: $(cat {job_config})\n"'
-    - '{1..40}'
+    - '{1..400}'
 
   capabilities:
     host:
