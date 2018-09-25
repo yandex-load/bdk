@@ -170,9 +170,10 @@ class StdoutSender(object):
             """
             :type stdout_line: unicode
             """
+            result_line = '{}:: {}'.format(time.time(), stdout_line)
             if self.buffer_size < self.buffer_size_limit:
-                self.buffer += stdout_line
-                self.buffer_size += len(stdout_line.encode('utf-8')) # unicode
+                self.buffer += result_line
+                self.buffer_size += len(result_line.encode('utf-8')) # unicode
             else:
                 self.queue.put(self.buffer)
                 self._clear_buffer()
@@ -228,7 +229,7 @@ class LPQClient(object):
                 logger.debug('Failed to claim job: %s', resp.text, exc_info=True)
 
     def get_send_status(self, job_id):
-        endpoint = '/api/job/{}/status'.format(job_id)
+        endpoint = '/job/{}/status'.format(job_id)
         url = urlparse.urljoin(self.base_address, endpoint)
 
         def send_status(rc):
@@ -237,11 +238,11 @@ class LPQClient(object):
         return send_status
 
     def get_send_stdout(self, job_id, session):
-        endpoint = '/api/job/{}/stdout'.format(job_id)
+        endpoint = '/job/{}/stdout'.format(job_id)
         url = urlparse.urljoin(self.base_address, endpoint)
 
         def send_stdout(content):
-            return retry_post(url, json={'stdout': content}, session=session)
+            return retry_post(url, data=content, session=session)
 
         return send_stdout
 
