@@ -11,10 +11,12 @@ setup(
     url='https://github.com/yandex-load/bdk',
     packages=find_packages(exclude=["tests", "tmp", "docs", "data"]),
     install_requires=[
+        'setuptools',
         'requests>=2.11.1',
         'simplejson',
         'netort==0.2.6',
-        'pyyaml', 'retrying'
+        'pyyaml', 'retrying',
+        'mock'
     ],
     entry_points={
         'console_scripts': [
@@ -24,4 +26,6 @@ setup(
     package_data={
         'bdk.core': ['config/*'],
     },
+    setup_requires=["pytest-runner"],
+    tests_require=['pytest']
 )

@@ -77,8 +77,7 @@ class BDKCore(threading.Thread):
                     time.sleep(self.api_poll_interval)
                 else:
                     logger.info('Task id: %s', job.id)
-                    if job.config:
-
+                    if job.config is not None:
                         with job.stdout_sender() as sender:
                             return_code = self.executor.run(self.__dump_job_config_to_disk(job.config),
                                                             sender)
@@ -170,20 +169,24 @@ class StdoutSender(object):
             """
             :type stdout_line: unicode
             """
-            result_line = '{}:: {}'.format(time.time(), stdout_line)
+            result_line = '{}:: {}\n'.format(int(time.time()*1000), stdout_line) # "ts.ms:: log line"
             if self.buffer_size < self.buffer_size_limit:
                 self.buffer += result_line
                 self.buffer_size += len(result_line.encode('utf-8')) # unicode
             else:
-                self.queue.put(self.buffer)
-                self._clear_buffer()
+                self._send_buffer()
+                self.buffer = result_line
+                self.buffer_size = len(result_line.encode('utf-8'))
         return send_data
+
+    def _send_buffer(self):
+        self.queue.put(self.buffer.rstrip())
+        self._clear_buffer()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_val:
             logger.error("There was {} error: {}\n{}".format(exc_type, exc_val, exc_tb))
-        self.queue.put(self.buffer)
-        self._clear_buffer()
+        self._send_buffer()
         self.sender_thread.finish()
         self.sender_thread.join()
         logger.debug('Sender thread for job {} joined'.format(self.job_id))
@@ -196,7 +199,7 @@ class StdoutSender(object):
 class LPQClient(object):
     def __init__(self, base_address):
         self.base_address = base_address
-        self.claim_url = urlparse.urljoin(base_address, '/api/job/claim')
+        self.claim_url = urlparse.urljoin(base_address, '/claim.yaml')
 
     def claim_task(self, capabilities):
         """
@@ -260,5 +263,5 @@ class LPQJob(object):
         self.send_status = lpq_client.get_send_status(self.id)
         self.send_stdout = lpq_client.get_send_stdout(self.id, session=self.session)
 
-    def stdout_sender(self):
-        return StdoutSender(self.id, self.send_stdout)
+    def stdout_sender(self, buffer_size=500*1024):
+        return StdoutSender(self.id, self.send_stdout, buffer_size=buffer_size)
