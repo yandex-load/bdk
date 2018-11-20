@@ -81,7 +81,7 @@ class BDKCore(threading.Thread):
                         with job.stdout_sender() as sender:
                             return_code = self.executor.run(self.__dump_job_config_to_disk(job.config),
                                                             sender)
-                        job.send_status(return_code)
+                        job.finish(return_code)
                     else:
                         logger.info('There is no `job` section in job. Nothing to do...')
                         logger.debug('There is no `job` section in job. Config: %s', job, exc_info=True)
@@ -232,7 +232,7 @@ class LPQClient(object):
                 logger.debug('Failed to claim job: %s', resp.text, exc_info=True)
 
     def get_send_status(self, job_id):
-        endpoint = '/job/{}/status'.format(job_id)
+        endpoint = '/job/{}/finish.json'.format(job_id)
         url = urlparse.urljoin(self.base_address, endpoint)
 
         def send_status(rc):
@@ -260,7 +260,7 @@ class LPQJob(object):
         self.id = job_data.get('task_id')
         self.config = job_data.get('config')
         self.session = requests.Session()
-        self.send_status = lpq_client.get_send_status(self.id)
+        self.finish = lpq_client.get_send_status(self.id)
         self.send_stdout = lpq_client.get_send_stdout(self.id, session=self.session)
 
     def stdout_sender(self, buffer_size=500*1024):
