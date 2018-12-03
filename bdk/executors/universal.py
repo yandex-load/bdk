@@ -1,6 +1,6 @@
+# -*- coding: utf-8 -*-
 import logging
 import subprocess
-import sys
 import shlex
 
 from bdk.common.interfaces import AbstractExecutor
@@ -23,17 +23,17 @@ class UniversalExecutor(AbstractExecutor):
                     'job_config': job_conf_file
                 }
             )
-        logger.debug('Prepared params: %s', prepared_params)
-        self.cmdline = "{executable} {params}".format(
+        logger.debug(u'Prepared params: %s', prepared_params)
+        self.cmdline = u"{executable} {params}".format(
             executable=self.executable,
             params=" ".join(prepared_params)
         )
         logger.info('Starting %s', self.cmdline)
-        splitted_args = shlex.split(self.cmdline)
+        splitted_encoded_args = shlex.split(self.cmdline.encode('utf8'))
         if self.shell:
             popen = subprocess.Popen(self.cmdline, shell=True, stdout=subprocess.PIPE)
         else:
-            popen = subprocess.Popen(splitted_args, stdout=subprocess.PIPE)
+            popen = subprocess.Popen(splitted_encoded_args, stdout=subprocess.PIPE)
         logger.info('Started %s', self.cmdline)
         for stdout_line in iter(popen.stdout.readline, ""):
             logger.info(stdout_line)

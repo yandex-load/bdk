@@ -169,14 +169,14 @@ class StdoutSender(object):
             """
             :type stdout_line: unicode
             """
-            result_line = '{}:: {}\n'.format(int(time.time()*1000), stdout_line) # "ts.ms:: log line"
+            result_line = '{}:: {}\n'.format(int(time.time()*1000), stdout_line)  # "ts.ms:: log line"
             if self.buffer_size < self.buffer_size_limit:
                 self.buffer += result_line
-                self.buffer_size += len(result_line.encode('utf-8')) # unicode
+                self.buffer_size += len(result_line)
             else:
                 self._send_buffer()
                 self.buffer = result_line
-                self.buffer_size = len(result_line.encode('utf-8'))
+                self.buffer_size = len(result_line)
         return send_data
 
     def _send_buffer(self):
